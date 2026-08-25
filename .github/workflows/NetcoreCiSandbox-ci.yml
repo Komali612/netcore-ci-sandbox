@@ -121,7 +121,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push image
         run: |
-          IMAGE=ghcr.io/${{ github.repository }}:${{ github.sha }}
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE=ghcr.io/$REPO:${{ github.sha }}
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
       - name: Generate SBOM
