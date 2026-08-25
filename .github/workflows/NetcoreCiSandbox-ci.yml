@@ -1,0 +1,146 @@
+name: 'NetcoreCiSandbox CI Pipeline'
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  DYNATRACE_ENVIRONMENT_ID: ${{ secrets.DYNATRACE_ENVIRONMENT_ID }}
+  DYNATRACE_API_TOKEN: ${{ secrets.DYNATRACE_API_TOKEN }}
+  SPLUNK_HEC_URL: ${{ secrets.SPLUNK_HEC_URL }}
+  SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
+  NEXUS_REPO_URL: ${{ secrets.NEXUS_REPO_URL }}
+  NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+  NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+  REGISTRY_URL: ${{ secrets.REGISTRY_URL }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore & build
+        run: |
+          SLN=$(find . -name '*.sln' -print -quit)
+          if [ -n "$SLN" ]; then
+            dotnet build "$SLN" --configuration Release
+          else
+            for p in $(find . -name '*.csproj'); do
+              echo "Building $p"
+              dotnet build "$p" --configuration Release
+            done
+          fi
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run Unit Tests
+        run: |
+          TESTS=$(find . -name '*.csproj' | grep -i test || true)
+          if [ -z "$TESTS" ]; then echo "No test projects found"; exit 0; fi
+          for p in $TESTS; do
+            echo "Testing $p"
+            dotnet test "$p" --configuration Release
+          done
+
+  sonarqube:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run SonarQube Analysis
+        run: |
+          echo "SonarQube coverage analysis placeholder"
+          echo "Integration with SonarQube via SONAR_HOST_URL and SONAR_TOKEN"
+
+  security:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run SAST (Fortify)
+        run: echo "SAST analysis via Fortify integration (placeholder)"
+
+      - name: Run SCA (Sonatype)
+        run: echo "SCA analysis via Sonatype integration (placeholder)"
+
+  dast:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run DAST (Fortify WebInspect)
+        run: echo 'DAST analysis via Fortify WebInspect (placeholder)'
+
+  container:
+    needs: security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push image
+        run: |
+          IMAGE=ghcr.io/${{ github.repository }}:${{ github.sha }}
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+      - name: Generate SBOM
+        run: echo 'SBOM generation (placeholder — e.g. Trivy/Syft)'
+
+  helm:
+    needs: container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Helm Chart
+        run: echo 'Update Helm chart (placeholder)'
+
+  notify:
+    needs: [build, test, sonarqube, security]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify Dynatrace
+        run: echo "Send build metrics to Dynatrace (placeholder)"
+
+      - name: Notify Splunk
+        run: echo "Send execution logs to Splunk (placeholder)"
