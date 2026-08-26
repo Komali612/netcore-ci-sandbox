@@ -97,12 +97,12 @@ jobs:
       - name: Run SCA (Sonatype)
         run: echo "SCA analysis via Sonatype integration (placeholder)"
 
-  dast:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Run DAST (Fortify WebInspect)
-        run: echo 'DAST analysis via Fortify WebInspect (placeholder)'
+  # DAST stage disabled in configuration
+    # needs: build
+    # runs-on: ubuntu-latest
+    # steps:
+      # - name: Run DAST (Fortify WebInspect)
+        # run: echo 'DAST analysis via Fortify WebInspect (placeholder)'
 
   container:
     needs: security
@@ -121,7 +121,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push image
         run: |
-          IMAGE=ghcr.io/${{ github.repository }}:${{ github.sha }}
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE=ghcr.io/$REPO:${{ github.sha }}
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
       - name: Generate SBOM
