@@ -28,23 +28,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+      - name: 'Set up .NET'
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-
-      - name: Restore & build
+      - name: 'Restore & build'
         run: |
-          SLN=$(find . -name '*.sln' -print -quit)
-          if [ -n "$SLN" ]; then
-            dotnet build "$SLN" --configuration Release
-          else
-            for p in $(find . -name '*.csproj'); do
-              echo "Building $p"
-              dotnet build "$p" --configuration Release
-            done
-          fi
+          dotnet restore
+          dotnet build --configuration Release --no-restore
 
   test:
     needs: build
@@ -52,20 +43,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+      - name: 'Set up .NET'
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-
-      - name: Run Unit Tests
+      - name: 'Run unit tests'
         run: |
-          TESTS=$(find . -name '*.csproj' | grep -i test || true)
-          if [ -z "$TESTS" ]; then echo "No test projects found"; exit 0; fi
-          for p in $TESTS; do
-            echo "Testing $p"
-            dotnet test "$p" --configuration Release
-          done
+          cat > coverlet.runsettings <<'EOF'
+          <RunSettings><DataCollectionRunSettings><DataCollectors><DataCollector friendlyName="XPlat Code Coverage"><Configuration><Format>opencover</Format></Configuration></DataCollector></DataCollectors></DataCollectionRunSettings></RunSettings>
+          EOF
+          dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
 
   sonarqube:
     needs: test
@@ -73,16 +60,27 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+      - name: 'Set up .NET'
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-
-      - name: Run SonarQube Analysis
+      - name: 'Sonar: set up JDK'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: 'Sonar: install scanner'
         run: |
-          echo "SonarQube coverage analysis placeholder"
-          echo "Integration with SonarQube via SONAR_HOST_URL and SONAR_TOKEN"
+          dotnet tool install --global dotnet-sonarscanner
+      - name: 'Sonar scan begin'
+        run: |
+          dotnet-sonarscanner begin /k:"__SONAR_PROJECT_KEY__" /o:"__SONAR_ORG__" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" /d:sonar.qualitygate.wait=false /d:sonar.exclusions="**/.github/**,**/Program.cs" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+      - name: 'Sonar build'
+        run: |
+          dotnet build --configuration Release
+      - name: 'Sonar scan end'
+        run: |
+          dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
   security:
     needs: test
